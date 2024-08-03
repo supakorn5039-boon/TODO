@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -23,12 +24,15 @@ type Todo struct {
 var collection *mongo.Collection
 
 func main() {
-	fmt.Println("hello word")
+	fmt.Println("hello world")
 
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file:", err)
+	if os.Getenv("ENV") != "production" {
+		err := godotenv.Load(".env")
+		if err != nil {
+			log.Fatal("Error loading .env file:", err)
+		}
 	}
+
 	MONGO_URL := os.Getenv("MONGODB_URI")
 	clientOptions := options.Client().ApplyURI(MONGO_URL)
 	client, err := mongo.Connect(context.Background(), clientOptions)
@@ -42,10 +46,26 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Connected to MONGODB Compass")
+	fmt.Println("Connected to MongoDB")
 	collection = client.Database("golang_db").Collection("todos")
 
 	app := fiber.New()
+
+	if os.Getenv("ENV") == "production" {
+		// Allow all origins in production (adjust as needed)
+		app.Use(cors.New(cors.Config{
+			AllowOrigins: "*", // Adjust for production if necessary
+			AllowMethods: "GET, POST, PATCH, DELETE",
+			AllowHeaders: "Content-Type",
+		}))
+	} else {
+		// Allow only specific origins during development
+		app.Use(cors.New(cors.Config{
+			AllowOrigins: "http://localhost:3000",
+			AllowMethods: "GET, POST, PATCH, DELETE",
+			AllowHeaders: "Content-Type",
+		}))
+	}
 
 	app.Get("/api/todos", getTodos)
 	app.Post("/api/todos", createTodos)
@@ -57,6 +77,9 @@ func main() {
 		port = "8080"
 	}
 
+	if os.Getenv("ENV") == "production" {
+		app.Static("/", "../client/dist")
+	}
 	log.Fatal(app.Listen("0.0.0.0:" + port))
 }
 
